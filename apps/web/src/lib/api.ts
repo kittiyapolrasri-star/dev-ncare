@@ -170,12 +170,6 @@ export const apiService = {
 
     updateDistributor: (id: string, data: any) => api.put(`/distributors/${id}`, data),
 
-    // Purchases
-    getPurchases: (params?: Record<string, any>) =>
-        api.get('/purchases', { params }),
-
-    createPurchase: (data: any) => api.post('/purchases', data),
-
     // Organizations
     getOrganization: () => api.get('/organizations/current'),
 
@@ -190,5 +184,12 @@ export const apiService = {
     createPrescription: (data: any) => api.post('/prescriptions', data),
 
     dispensePrescription: (id: string) => api.post(`/prescriptions/${id}/dispense`),
+
+    // Purchases
+    getPurchases: (params?: Record<string, any>) => api.get('/purchases', { params }),
+    getPurchase: (id: string) => api.get(`/purchases/${id}`),
+    createPurchase: (data: any) => api.post('/purchases', data),
+    receivePurchase: (id: string, items: any[]) => api.post(`/purchases/${id}/receive`, { items }),
+    updatePurchaseStatus: (id: string, status: string) => api.put(`/purchases/${id}/status`, { status }),
 };
 

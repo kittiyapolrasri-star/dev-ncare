@@ -19,7 +19,8 @@ import {
     X,
     Building2,
     ChevronDown,
-    Truck
+    Truck,
+    FileCheck,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { clsx } from 'clsx';
@@ -29,6 +30,8 @@ const navigation = [
     { name: 'สินค้า', href: '/dashboard/products', icon: Package },
     { name: 'คลังสินค้า', href: '/dashboard/inventory', icon: BoxesIcon },
     { name: 'ขายสินค้า (POS)', href: '/dashboard/pos', icon: ShoppingCart },
+    { name: 'E-Tax Invoice', href: '/dashboard/etax', icon: FileCheck },
+    { name: 'สั่งซื้อสินค้า (PO)', href: '/dashboard/purchases', icon: FileText },
     { name: 'สั่งซื้อ OEM', href: '/dashboard/oem', icon: Factory },
     { name: 'ผู้จำหน่าย', href: '/dashboard/suppliers', icon: Truck },
     { name: 'ตัวแทนจำหน่าย', href: '/dashboard/distributors', icon: Users },

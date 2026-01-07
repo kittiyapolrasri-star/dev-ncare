@@ -591,6 +591,7 @@ model Sale {
   items          SaleItem[]
   payments       Payment[]
   returns        SaleReturn[]
+  etaxInvoice    ETaxInvoice?
 
   @@map("sales")
 }
@@ -857,5 +858,49 @@ model SaleReturnItem {
   batch         ProductBatch? @relation(fields: [batchId], references: [id])
 
   @@map("sale_return_items")
+}
+
+// ============================================
+// E-TAX INVOICE (ใบกำกับภาษีอิเล็กทรอนิกส์)
+// ============================================
+
+model ETaxInvoice {
+  id            String   @id @default(uuid())
+  saleId        String   @unique @map("sale_id")
+  invoiceNumber String   @unique @map("invoice_number")
+  invoiceDate   DateTime @default(now()) @map("invoice_date")
+  
+  // Customer Info Snapshot
+  customerName  String   @map("customer_name")
+  customerTaxId String?  @map("customer_tax_id")
+  customerBranch String? @map("customer_branch") // 00000 = Head Office
+  customerAddress String? @map("customer_address")
+  customerEmail String?  @map("customer_email")
+  customerPhone String?  @map("customer_phone")
+
+  // Amounts
+  totalAmount     Decimal @map("total_amount") @db.Decimal(15, 2)
+  vatAmount       Decimal @map("vat_amount") @db.Decimal(15, 2)
+  amountBeforeVat Decimal @map("amount_before_vat") @db.Decimal(15, 2)
+  
+  // Status
+  status        ETaxStatus @default(GENERATED)
+  xmlUrl        String?    @map("xml_url") // Link to signed XML
+  pdfUrl        String?    @map("pdf_url") // Link to PDF
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  sale          Sale @relation(fields: [saleId], references: [id])
+
+  @@map("etax_invoices")
+}
+
+enum ETaxStatus {
+  GENERATED     // สร้างเอกสารแล้ว
+  SENT_TO_RD    // ส่งกรมสรรพากรแล้ว
+  COMPLETED     // อนุมัติ/สมบูรณ์
+  CANCELLED     // ยกเลิก
+  FAILED        // ส่งไม่ผ่าน
 }
 

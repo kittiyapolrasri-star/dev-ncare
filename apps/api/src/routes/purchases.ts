@@ -113,14 +113,77 @@ router.post('/', authorize('CEO', 'BRANCH_MANAGER', 'PHARMACIST'), async (req: A
     res.status(201).json({ success: true, data: purchase, message: 'สร้างใบสั่งซื้อสำเร็จ' });
 });
 
-// PUT /api/purchases/:id/status
-router.put('/:id/status', authorize('CEO', 'BRANCH_MANAGER'), async (req: AuthRequest, res) => {
-    const { status } = req.body;
-    const validStatuses = ['DRAFT', 'PENDING', 'APPROVED', 'ORDERED', 'PARTIAL', 'RECEIVED', 'CANCELLED'];
-    if (!validStatuses.includes(status)) throw ApiError.badRequest('สถานะไม่ถูกต้อง');
+// POST /api/purchases/:id/receive
+router.post('/:id/receive', authorize('CEO', 'BRANCH_MANAGER', 'PHARMACIST'), async (req: AuthRequest, res) => {
+    const { items } = req.body; // Array of { productId, quantity, batchNo, expiryDate ... }
 
-    const purchase = await prisma.purchase.update({ where: { id: req.params.id }, data: { status } });
-    res.json({ success: true, data: purchase, message: 'อัพเดตสถานะสำเร็จ' });
+    // 1. Get Purchase
+    const purchase = await prisma.purchase.findUnique({
+        where: { id: req.params.id },
+        include: { items: true }
+    });
+
+    if (!purchase) throw ApiError.notFound('ไม่พบใบสั่งซื้อ');
+    if (purchase.status === 'RECEIVED' || purchase.status === 'CANCELLED') {
+        throw ApiError.badRequest('ใบสั่งซื้อนี้ถูกรับสินค้าหรือยกเลิกไปแล้ว');
+    }
+
+    // 2. Process receiving (Update Inventory)
+    // For simplicity in this P priority, we assume full receive or nothing for now, 
+    // but structure allows partial.
+
+    await prisma.$transaction(async (tx: any) => {
+        // Update PO status
+        await tx.purchase.update({
+            where: { id: purchase.id },
+            data: { status: 'RECEIVED' } // Force close for now
+        });
+
+        // Add to Inventory
+        for (const item of items) {
+            // Find or Create ProductBatch
+            // Add stock movement
+            // This part requires careful logic with Inventory model
+            // implementation detail omitted for brevity, assuming simple stock add for now
+
+            // Check if product exists
+            const product = await tx.product.findUnique({ where: { id: item.productId } });
+            if (!product) continue;
+
+            // Create Batch
+            const batch = await tx.productBatch.create({
+                data: {
+                    productId: item.productId,
+                    batchNumber: item.batchNo || `BATCH-${Date.now()}`,
+                    expiryDate: item.expiryDate ? new Date(item.expiryDate) : undefined,
+                    costPrice: item.costPrice,
+                    price: item.price || product.price, // Use new price or existing
+                    quantity: item.quantity,
+                    remaining: item.quantity,
+                    branchId: purchase.branchId,
+                    status: 'ACTIVE'
+                }
+            });
+
+            // Record Stock Movement
+            await tx.stockMovement.create({
+                data: {
+                    productId: item.productId,
+                    batchId: batch.id,
+                    branchId: purchase.branchId,
+                    type: 'PURCHASE_IN',
+                    quantity: item.quantity,
+                    balanceAfter: item.quantity, // New batch starts with this
+                    referenceType: 'PURCHASE',
+                    referenceId: purchase.id,
+                    reason: 'รับสินค้าจากการสั่งซื้อ',
+                    performedBy: req.user!.id
+                }
+            });
+        }
+    });
+
+    res.json({ success: true, message: 'รับสินค้าเข้าคลังเรียบร้อยแล้ว' });
 });
 
 export default router;
