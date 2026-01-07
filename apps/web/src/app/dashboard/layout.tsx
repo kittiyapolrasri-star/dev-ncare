@@ -36,6 +36,7 @@ const navigation = [
     { name: 'สาขา', href: '/dashboard/branches', icon: Factory },
     { name: 'ผู้ใช้งาน', href: '/dashboard/users', icon: Settings },
     { name: 'คืนสินค้า', href: '/dashboard/returns', icon: RotateCcw },
+    { name: 'ใบสั่งยา', href: '/dashboard/prescriptions', icon: FileSignature },
     { name: 'รายงาน', href: '/dashboard/reports', icon: FileText },
     { name: 'ตั้งค่า', href: '/dashboard/settings', icon: Settings },
 ];

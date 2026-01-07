@@ -180,5 +180,15 @@ export const apiService = {
     getOrganization: () => api.get('/organizations/current'),
 
     updateOrganization: (data: any) => api.put('/organizations/current', data),
+
+    // Prescriptions
+    getPrescriptions: (params?: Record<string, any>) =>
+        api.get('/prescriptions', { params }),
+
+    getPrescription: (id: string) => api.get(`/prescriptions/${id}`),
+
+    createPrescription: (data: any) => api.post('/prescriptions', data),
+
+    dispensePrescription: (id: string) => api.post(`/prescriptions/${id}/dispense`),
 };
 

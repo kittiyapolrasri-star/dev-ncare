@@ -23,6 +23,7 @@ import reportRoutes from './routes/reports.js';
 import dashboardRoutes from './routes/dashboard.js';
 import userRoutes from './routes/users.js';
 import returnRoutes from './routes/returns.js';
+import prescriptionRoutes from './routes/prescriptions.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { sanitizeBody } from './middleware/validation.js';
@@ -108,6 +109,7 @@ apiRouter.use('/reports', reportRoutes);
 apiRouter.use('/dashboard', dashboardRoutes);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/returns', returnRoutes);
+apiRouter.use('/prescriptions', prescriptionRoutes);
 
 app.use('/api', apiRouter);
 
