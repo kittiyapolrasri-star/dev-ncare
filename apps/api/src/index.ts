@@ -25,6 +25,25 @@ import userRoutes from './routes/users.js';
 import returnRoutes from './routes/returns.js';
 import prescriptionRoutes from './routes/prescriptions.js';
 import etaxRoutes from './routes/etax.js';
+import financeRoutes from './routes/finance.js';
+import settingsRoutes from './routes/settings.js';
+import paymentRoutes from './routes/payments.js';
+
+// ... other imports
+
+const app = express();
+
+// ... middleware
+
+app.use('/auth', authRoutes);
+app.use('/users', userRoutes);
+app.use('/products', productRoutes);
+app.use('/inventory', inventoryRoutes);
+app.use('/purchases', purchaseRoutes);
+app.use('/sales', saleRoutes);
+app.use('/dashboard', dashboardRoutes);
+app.use('/stock-transfers', stockTransferRoutes);
+app.use('/finance', financeRoutes);
 import { errorHandler } from './middleware/errorHandler.js';
 import { rateLimiter } from './middleware/rateLimiter.js';
 import { sanitizeBody } from './middleware/validation.js';
@@ -111,7 +130,13 @@ apiRouter.use('/dashboard', dashboardRoutes);
 apiRouter.use('/users', userRoutes);
 apiRouter.use('/returns', returnRoutes);
 apiRouter.use('/prescriptions', prescriptionRoutes);
+import aiRoutes from './routes/ai.js';
+// ... previous imports
+
 apiRouter.use('/etax', etaxRoutes);
+apiRouter.use('/stock-transfers', stockTransferRoutes);
+apiRouter.use('/ai', aiRoutes);
+apiRouter.use('/settings', settingsRoutes);
 
 app.use('/api', apiRouter);
 
@@ -136,6 +161,8 @@ app.use(errorHandler);
 
 const PORT = process.env.API_PORT || 4000;
 
+import { initScheduler } from './services/scheduler.js';
+
 httpServer.listen(PORT, () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
@@ -147,6 +174,9 @@ httpServer.listen(PORT, () => {
 ║  Time:      ${new Date().toLocaleString('th-TH')}               ║
 ╚══════════════════════════════════════════════════════════╝
   `);
+
+    // Start Background Services
+    initScheduler();
 });
 
 export default app;

@@ -191,5 +191,31 @@ export const apiService = {
     createPurchase: (data: any) => api.post('/purchases', data),
     receivePurchase: (id: string, items: any[]) => api.post(`/purchases/${id}/receive`, { items }),
     updatePurchaseStatus: (id: string, status: string) => api.put(`/purchases/${id}/status`, { status }),
+
+    // Stock Transfers
+    getStockTransfers: (params?: Record<string, any>) => api.get('/stock-transfers', { params }),
+    createStockTransfer: (data: any) => api.post('/stock-transfers', data),
+    shipStockTransfer: (id: string) => api.put(`/stock-transfers/${id}/ship`),
+    receiveStockTransfer: (id: string) => api.put(`/stock-transfers/${id}/receive`),
+    // Finance
+    getArAging: (params?: Record<string, any>) => api.get('/finance/aging/ar', { params }),
+    getApAging: (params?: Record<string, any>) => api.get('/finance/aging/ap', { params }),
+    createPayment: (data: Record<string, any>) => api.post('/finance/payments', data),
+
+    // Reports
+    getSalesReport: (params?: Record<string, any>) => api.get('/reports/sales', { params }),
+    getInventoryReport: (params?: Record<string, any>) => api.get('/reports/inventory', { params }),
+    getTaxReport: (params?: Record<string, any>) => api.get('/reports/tax', { params }),
+    getProductPerformance: (params?: Record<string, any>) => api.get('/reports/products', { params }),
+    getDistributorPerformance: (params?: Record<string, any>) => api.get('/reports/distributors', { params }),
+    getProfitLoss: (params?: Record<string, any>) => api.get('/reports/profit-loss', { params }),
+
+    // AI & Intelligence
+    getSalesForecast: (params?: Record<string, any>) => api.get('/ai/forecast/sales', { params }),
+    getReorderSuggestions: (params?: Record<string, any>) => api.get('/ai/reorder-suggestions', { params }),
+
+    // Settings
+    getSettings: () => api.get('/settings'),
+    updateSettings: (data: any) => api.put('/settings', data),
 };
 

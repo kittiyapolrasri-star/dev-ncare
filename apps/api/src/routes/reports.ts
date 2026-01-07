@@ -57,10 +57,66 @@ router.get('/sales', async (req: AuthRequest, res) => {
         totalSales: sales.length,
         totalAmount: sales.reduce((sum, s) => sum + parseFloat(s.totalAmount.toString()), 0),
         totalVat: sales.reduce((sum, s) => sum + parseFloat(s.vatAmount.toString()), 0),
-        totalDiscount: sales.reduce((sum, s) => sum + parseFloat(s.discountAmount.toString()), 0)
+        totalDiscount: sales.reduce((sum, s) => sum + parseFloat(s.discountAmount.toString()), 0),
+        // Breakdown by payment method
+        byPaymentMethod: {
+            cash: sales.filter(s => s.paymentMethod === 'CASH').reduce((sum, s) => sum + parseFloat(s.totalAmount.toString()), 0),
+            transfer: sales.filter(s => ['BANK_TRANSFER', 'QR_PAYMENT'].includes(s.paymentMethod)).reduce((sum, s) => sum + parseFloat(s.totalAmount.toString()), 0),
+            credit: sales.filter(s => s.paymentMethod === 'CREDIT').reduce((sum, s) => sum + parseFloat(s.totalAmount.toString()), 0),
+        }
     };
 
     res.json({ success: true, data: { summary, byPeriod: Object.values(groupedData) } });
+});
+
+// GET /api/reports/inventory/movement - Stock Card (Movement History)
+router.get('/inventory/movement', async (req: AuthRequest, res) => {
+    const { branchId, productId, startDate, endDate, limit = '50' } = req.query;
+
+    if (!productId) {
+        return res.status(400).json({ success: false, message: 'Product ID is required for Stock Card' });
+    }
+
+    const where: any = { productId: productId as string };
+
+    if (branchId) where.branchId = branchId;
+    if (startDate || endDate) {
+        where.createdAt = {};
+        if (startDate) where.createdAt.gte = new Date(startDate as string);
+        if (endDate) where.createdAt.lte = new Date(endDate as string);
+    }
+
+    const movements = await prisma.stockMovement.findMany({
+        where,
+        include: {
+            batch: {
+                include: {
+                    product: {
+                        select: { name: true, sku: true, unit: true }
+                    }
+                }
+            },
+            branch: {
+                select: { name: true }
+            }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: parseInt(limit as string)
+    });
+
+    const result = movements.map((m: any) => ({
+        id: m.id,
+        date: m.createdAt,
+        type: m.movementType,
+        product: m.batch.product.name,
+        sku: m.batch.product.sku,
+        batch: m.batch.batchNumber,
+        quantity: m.quantity,
+        reference: m.referenceType ? `${m.referenceType}: ${m.referenceId || '-'}` : m.notes || '-',
+        branch: m.branch.name
+    }));
+
+    res.json({ success: true, data: result });
 });
 
 // GET /api/reports/inventory - Inventory report
@@ -258,6 +314,77 @@ router.get('/distributors', authorize('CEO', 'BRANCH_MANAGER'), async (req: Auth
     );
 
     res.json({ success: true, data: distributorsWithDetails.filter(Boolean) });
+});
+
+// GET /api/reports/profit-loss - Basic Profit & Loss (Revenue vs COGS)
+router.get('/profit-loss', authorize('CEO', 'ACCOUNTANT'), async (req: AuthRequest, res) => {
+    try {
+        const { startDate, endDate, branchId } = req.query;
+
+        const where: any = { status: 'COMPLETED' };
+        if (branchId) where.branchId = branchId;
+
+        // Date filter
+        if (startDate || endDate) {
+            where.saleDate = {};
+            if (startDate) where.saleDate.gte = new Date(startDate as string);
+            if (endDate) where.saleDate.lte = new Date(endDate as string);
+        } else {
+            // Default to current month
+            const start = startOfMonth(new Date());
+            where.saleDate = { gte: start };
+        }
+
+        const sales = await prisma.sale.findMany({
+            where,
+            include: {
+                items: {
+                    include: {
+                        batch: true,
+                        product: true
+                    }
+                }
+            }
+        });
+
+        let totalRevenue = 0;
+        let totalCost = 0;
+
+        sales.forEach(sale => {
+            // Revenue (excluding VAT is better for P&L, but simplify to totalAmount - vatAmount)
+            // Or use subtotal (which is usually ex-vat or inc-vat depending on logic, let's use logic: price - vat)
+
+            sale.items.forEach(item => {
+                const itemTotal = Number(item.totalPrice);
+                const itemVat = Number(item.vatAmount);
+                const netSales = itemTotal - itemVat;
+
+                totalRevenue += netSales;
+
+                // Cost
+                const quantity = item.quantity;
+                // Prefer batch cost, fallback to current product cost
+                const unitCost = Number(item.batch?.costPrice || item.product.costPrice || 0);
+                totalCost += (quantity * unitCost);
+            });
+        });
+
+        const grossProfit = totalRevenue - totalCost;
+        const profitMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
+
+        res.json({
+            success: true,
+            data: {
+                period: { startDate, endDate },
+                revenue: totalRevenue,
+                cogs: totalCost,
+                grossProfit: grossProfit,
+                profitMargin: profitMargin.toFixed(2)
+            }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Failed to generate P&L report' });
+    }
 });
 
 export default router;

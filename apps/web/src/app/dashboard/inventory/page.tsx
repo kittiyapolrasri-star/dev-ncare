@@ -18,19 +18,34 @@ import {
 import { apiService } from '@/lib/api';
 import { clsx } from 'clsx';
 
+import { useSearchParams, useRouter } from 'next/navigation';
+import { useAuthStore } from '@/stores/auth'; // Fix missing import if needed or generic
+
 export default function InventoryPage() {
+    const searchParams = useSearchParams();
+    const router = useRouter();
+
+    const initialLowStock = searchParams.get('lowStock') === 'true';
+    const initialExpiring = searchParams.get('expiringSoon');
+
     const [search, setSearch] = useState('');
     const [inventoryType, setInventoryType] = useState<'all' | 'vat' | 'non-vat'>('all');
+    const [lowStock, setLowStock] = useState(initialLowStock);
+    const [expiringSoon, setExpiringSoon] = useState(initialExpiring ? Number(initialExpiring) : undefined);
     const [showReceiveModal, setShowReceiveModal] = useState(false);
+
+    // Update URL when filters change (optional but good for sharing)
+    // For now, simpler to just use state, but we init from URL.
 
     // Fetch inventory data
     const { data, isLoading } = useQuery({
-        queryKey: ['inventory', inventoryType, search],
+        queryKey: ['inventory', inventoryType, search, lowStock, expiringSoon],
         queryFn: async () => {
             const res = await apiService.getInventory({
                 type: inventoryType === 'all' ? undefined : inventoryType,
                 search,
-                expiringSoon: 30
+                lowStock: lowStock ? 'true' : undefined,
+                expiringSoon: expiringSoon
             });
             return res.data.data;
         },
@@ -38,10 +53,30 @@ export default function InventoryPage() {
 
     const vatInventory = data?.vatInventory || [];
     const nonVatInventory = data?.nonVatInventory || [];
-    const expiringItems = data?.expiringItems || [];
+    const expiringItemsList = data?.expiringItems || []; // Items expiring in 30 days regardless of filter?
+    // Actually api returns 'expiringItems' (summary list) AND filtered inventory lists.
+    // If 'expiringSoon' param is sent, the main lists (vatInventory/nonVat) should ideally be filtered or we rely on 'expiringItems' array?
+    // Looking at backend:
+    // If 'lowStock' is true, baseWhere adds quantity check.
+    // If 'expiringSoon' is passed, it returns 'expiringItems' array (ProductBatch).
+    // BUT does it filter vatInventory/nonVatInventory?
+    // Backend: 'expiringSoon' ONLY populates 'expiringItems' array side-car. It does NOT filter the main inventory lists.
+    // AND 'lowStock' param DOES filter the main inventory lists.
+    // So for Low Stock, it works.
+    // For Expiring Soon, we might need adjustments if we want the MAIN TABLE to show only expiring items.
+    // Current backend logic:
+    // if (expiringSoon) -> fetches separate 'expiringItems' list.
+    // It doesn't filter the main list.
+    // So if user clicks "Expiring Soon", the table shows everything, but there is a summary section.
+    // User might expect the TABLE to filter.
+
+    // Let's rely on the backend behavior for now:
+    // Low Stock -> Filters table.
+    // Expiring Soon -> Shows the 'Expiring Items Alert' section. 
+    // We already have code to show that section.
+
     const summary = data?.summary || {};
 
-    // Combine for display if showing all
     const allInventory = [
         ...vatInventory.map((i: any) => ({ ...i, type: 'vat' })),
         ...nonVatInventory.map((i: any) => ({ ...i, type: 'non-vat' }))
@@ -100,32 +135,32 @@ export default function InventoryPage() {
                 />
                 <SummaryCard
                     title="แจ้งเตือน"
-                    value={expiringItems.length}
+                    value={expiringItemsList.length}
                     subValue="ใกล้หมดอายุ 30 วัน"
                     color="danger"
-                    isAlert={expiringItems.length > 0}
+                    isAlert={expiringItemsList.length > 0}
                 />
             </div>
 
             {/* Expiring Items Alert */}
-            {expiringItems.length > 0 && (
+            {expiringItemsList.length > 0 && (
                 <div className="card bg-danger-50 border-danger-200">
                     <div className="flex items-start gap-3">
                         <AlertTriangle className="w-5 h-5 text-danger-600 flex-shrink-0 mt-0.5" />
                         <div className="flex-1">
                             <h3 className="font-medium text-danger-900">ยาใกล้หมดอายุ</h3>
                             <p className="text-sm text-danger-700 mt-1">
-                                {expiringItems.length} รายการจะหมดอายุภายใน 30 วัน
+                                {expiringItemsList.length} รายการจะหมดอายุภายใน 30 วัน
                             </p>
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {expiringItems.slice(0, 5).map((item: any) => (
+                                {expiringItemsList.slice(0, 5).map((item: any) => (
                                     <span key={item.batchId} className="px-2 py-1 bg-white rounded-lg text-xs text-danger-700">
                                         {item.productName} - หมด {new Date(item.expiryDate).toLocaleDateString('th-TH')}
                                     </span>
                                 ))}
-                                {expiringItems.length > 5 && (
+                                {expiringItemsList.length > 5 && (
                                     <span className="px-2 py-1 bg-white rounded-lg text-xs text-danger-600">
-                                        +{expiringItems.length - 5} รายการ
+                                        +{expiringItemsList.length - 5} รายการ
                                     </span>
                                 )}
                             </div>

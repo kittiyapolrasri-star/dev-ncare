@@ -21,6 +21,11 @@ import {
     ChevronDown,
     Truck,
     FileCheck,
+    ArrowRightLeft,
+    Brain,
+    RotateCcw,
+    FileSignature,
+    DollarSign
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { clsx } from 'clsx';
@@ -32,6 +37,7 @@ const navigation = [
     { name: 'ขายสินค้า (POS)', href: '/dashboard/pos', icon: ShoppingCart },
     { name: 'E-Tax Invoice', href: '/dashboard/etax', icon: FileCheck },
     { name: 'สั่งซื้อสินค้า (PO)', href: '/dashboard/purchases', icon: FileText },
+    { name: 'โอนย้ายสินค้า', href: '/dashboard/stock-transfers', icon: ArrowRightLeft },
     { name: 'สั่งซื้อ OEM', href: '/dashboard/oem', icon: Factory },
     { name: 'ผู้จำหน่าย', href: '/dashboard/suppliers', icon: Truck },
     { name: 'ตัวแทนจำหน่าย', href: '/dashboard/distributors', icon: Users },
@@ -40,7 +46,10 @@ const navigation = [
     { name: 'ผู้ใช้งาน', href: '/dashboard/users', icon: Settings },
     { name: 'คืนสินค้า', href: '/dashboard/returns', icon: RotateCcw },
     { name: 'ใบสั่งยา', href: '/dashboard/prescriptions', icon: FileSignature },
+    { name: 'การเงิน', href: '/dashboard/finance', icon: DollarSign },
+    { name: 'การเงิน', href: '/dashboard/finance', icon: DollarSign },
     { name: 'รายงาน', href: '/dashboard/reports', icon: FileText },
+    { name: 'AI Intelligence', href: '/dashboard/ai', icon: Brain },
     { name: 'ตั้งค่า', href: '/dashboard/settings', icon: Settings },
 ];
 

@@ -62,9 +62,54 @@ model Branch {
   purchases      Purchase[]
   stockMovements StockMovement[]
   goodsReceiving GoodsReceiving[]
+  sourceTransfers StockTransfer[] @relation("SourceBranch")
+  targetTransfers StockTransfer[] @relation("TargetBranch")
 
   @@unique([organizationId, code])
   @@map("branches")
+}
+
+model StockTransfer {
+  id            String   @id @default(uuid())
+  transferNo    String   @unique @map("transfer_no")
+  sourceBranchId String  @map("source_branch_id")
+  targetBranchId String  @map("target_branch_id")
+  requestDate   DateTime @default(now()) @map("request_date")
+  shippedDate   DateTime? @map("shipped_date")
+  receivedDate  DateTime? @map("received_date")
+  status        TransferStatus @default(PENDING)
+  notes         String?
+  createdBy     String   @map("created_by")
+  
+  sourceBranch  Branch   @relation("SourceBranch", fields: [sourceBranchId], references: [id])
+  targetBranch  Branch   @relation("TargetBranch", fields: [targetBranchId], references: [id])
+  user          User     @relation(fields: [createdBy], references: [id])
+  items         StockTransferItem[]
+
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("stock_transfers")
+}
+
+enum TransferStatus {
+  PENDING    // รออนุมัติ/รอส่ง
+  SHIPPED    // ส่งของแล้ว (ตัดสต็อกต้นทาง)
+  COMPLETED  // รับของแล้ว (เพิ่มสต็อกปลายทาง)
+  CANCELLED  // ยกเลิก
+  REJECTED   // ปฏิเสธ
+}
+
+model StockTransferItem {
+  id              String   @id @default(uuid())
+  stockTransferId String   @map("stock_transfer_id")
+  productId       String   @map("product_id")
+  quantity        Int
+  
+  stockTransfer   StockTransfer @relation(fields: [stockTransferId], references: [id])
+  product         Product       @relation(fields: [productId], references: [id])
+
+  @@map("stock_transfer_items")
 }
 
 enum BranchType {
@@ -94,6 +139,7 @@ model User {
   sales          Sale[]
   purchases      Purchase[]
   auditLogs      AuditLog[]
+  createdTransfers StockTransfer[]
 
   @@map("users")
 }
@@ -186,6 +232,7 @@ model Product {
   purchaseItems   PurchaseItem[]
   oemOrderItems   OemOrderItem[]
   saleReturnItems SaleReturnItem[]
+  stockTransferItems StockTransferItem[]
 
   @@unique([organizationId, sku])
   @@map("products")
@@ -450,6 +497,12 @@ model Purchase {
   subtotal       Decimal  @db.Decimal(15, 2)
   vatAmount      Decimal  @map("vat_amount") @db.Decimal(15, 2)
   totalAmount    Decimal  @map("total_amount") @db.Decimal(15, 2)
+  
+  // Payment Status (For AP Aging)
+  paymentStatus  PaymentStatus @default(PENDING) @map("payment_status")
+  amountPaid     Decimal  @default(0) @map("amount_paid") @db.Decimal(15, 2)
+  dueDate        DateTime? @map("due_date")
+
   notes          String?
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -505,6 +558,7 @@ model Customer {
   taxId          String?  @map("tax_id")
   customerType   CustomerType @default(RETAIL) @map("customer_type")
   creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  paymentTerms   Int      @default(0) @map("payment_terms") // วัน (เครดิตเทอม)
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
@@ -575,6 +629,7 @@ model Sale {
   paymentStatus  PaymentStatus @default(PAID) @map("payment_status")
   amountPaid     Decimal  @map("amount_paid") @db.Decimal(15, 2)
   changeAmount   Decimal  @default(0) @map("change_amount") @db.Decimal(15, 2)
+  dueDate        DateTime? @map("due_date")
   
   // VAT Invoice
   isVatInvoice   Boolean  @default(false) @map("is_vat_invoice")
@@ -652,17 +707,25 @@ model SaleItem {
 model Payment {
   id             String   @id @default(uuid())
   saleId         String?  @map("sale_id")
+  purchaseId     String?  @map("purchase_id")
   paymentNumber  String   @unique @map("payment_number")
   paymentDate    DateTime @default(now()) @map("payment_date")
   paymentMethod  PaymentMethod @map("payment_method")
   amount         Decimal  @db.Decimal(15, 2)
+  type           PaymentType @default(INCOME) // INCOME (Received), EXPENSE (Paid)
   reference      String?  // เลขอ้างอิง
   notes          String?
   createdAt      DateTime @default(now()) @map("created_at")
 
   sale           Sale? @relation(fields: [saleId], references: [id])
+  purchase       Purchase? @relation(fields: [purchaseId], references: [id])
 
   @@map("payments")
+}
+
+enum PaymentType {
+  INCOME
+  EXPENSE
 }
 
 model Account {

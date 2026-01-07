@@ -384,6 +384,10 @@ function SecuritySettings() {
 
 // Notification Settings
 function NotificationSettings() {
+    const queryClient = useQueryClient();
+    const [isLoading, setIsLoading] = useState(false);
+    const [isTesting, setIsTesting] = useState(false);
+
     const [settings, setSettings] = useState({
         lowStock: true,
         expiringSoon: true,
@@ -391,7 +395,59 @@ function NotificationSettings() {
         dailySummary: false,
         emailNotifications: true,
         lineNotify: false,
+        lineNotifyToken: '',
     });
+
+    // Fetch settings
+    useQuery({
+        queryKey: ['settings'],
+        queryFn: async () => {
+            const res = await apiService.getSettings();
+            const data = res.data.data;
+            if (data) {
+                setSettings(prev => ({
+                    ...prev,
+                    lowStock: data.lowStock ?? true,
+                    expiringSoon: data.expiringSoon ?? true,
+                    newOrders: data.newOrders ?? true,
+                    dailySummary: data.dailySummary ?? false,
+                    emailNotifications: data.emailNotifications ?? true,
+                    lineNotify: data.lineNotify ?? false,
+                    lineNotifyToken: data.lineNotifyToken || '',
+                }));
+            }
+            return data;
+        },
+    });
+
+    const handleSave = async () => {
+        setIsLoading(true);
+        try {
+            await apiService.updateSettings(settings);
+            toast.success('บันทึกการตั้งค่าแจ้งเตือนสำเร็จ');
+            queryClient.invalidateQueries({ queryKey: ['settings'] });
+        } catch {
+            toast.error('เกิดข้อผิดพลาดในการบันทึก');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleTestLine = async () => {
+        if (!settings.lineNotifyToken) {
+            toast.error('กรุณาระบุ LINE Token');
+            return;
+        }
+        setIsTesting(true);
+        try {
+            await apiService.api.post('/settings/test-line', { token: settings.lineNotifyToken });
+            toast.success('ส่งข้อความทดสอบสำเร็จ');
+        } catch (error: any) {
+            toast.error(error.response?.data?.message || 'ส่งข้อความไม่สำเร็จ โปรดตรวจสอบ Token');
+        } finally {
+            setIsTesting(false);
+        }
+    };
 
     return (
         <div className="card">
@@ -405,46 +461,87 @@ function NotificationSettings() {
                 </div>
             </div>
 
-            <div className="space-y-4">
-                <ToggleItem
-                    label="สินค้าใกล้หมด"
-                    description="แจ้งเตือนเมื่อสินค้าต่ำกว่า Reorder Point"
-                    checked={settings.lowStock}
-                    onChange={(checked) => setSettings({ ...settings, lowStock: checked })}
-                />
-                <ToggleItem
-                    label="ยาใกล้หมดอายุ"
-                    description="แจ้งเตือนเมื่อมียาจะหมดอายุใน 30 วัน"
-                    checked={settings.expiringSoon}
-                    onChange={(checked) => setSettings({ ...settings, expiringSoon: checked })}
-                />
-                <ToggleItem
-                    label="คำสั่งซื้อใหม่"
-                    description="แจ้งเตือนเมื่อมีคำสั่งซื้อใหม่เข้ามา"
-                    checked={settings.newOrders}
-                    onChange={(checked) => setSettings({ ...settings, newOrders: checked })}
-                />
-                <ToggleItem
-                    label="สรุปรายวัน"
-                    description="รับสรุปยอดขายและสต็อกทุกวันตอน 18:00"
-                    checked={settings.dailySummary}
-                    onChange={(checked) => setSettings({ ...settings, dailySummary: checked })}
-                />
-
-                <div className="pt-4 border-t border-gray-100 space-y-4">
-                    <h3 className="font-medium text-gray-900">ช่องทางการแจ้งเตือน</h3>
+            <div className="space-y-6">
+                <div className="space-y-4">
                     <ToggleItem
-                        label="อีเมล"
+                        label="สินค้าใกล้หมด (Low Stock)"
+                        description="แจ้งเตือนเมื่อสินค้าต่ำกว่าจุดสั่งซื้อ (Reorder Point)"
+                        checked={settings.lowStock}
+                        onChange={(checked) => setSettings({ ...settings, lowStock: checked })}
+                    />
+                    <ToggleItem
+                        label="ยาใกล้หมดอายุ (Expiring Soon)"
+                        description="แจ้งเตือนเมื่อมียาจะหมดอายุใน 90 วัน"
+                        checked={settings.expiringSoon}
+                        onChange={(checked) => setSettings({ ...settings, expiringSoon: checked })}
+                    />
+                    <ToggleItem
+                        label="คำสั่งซื้อใหม่ (New Orders)"
+                        description="แจ้งเตือนเมื่อมีคำสั่งซื้อใหม่เข้ามา"
+                        checked={settings.newOrders}
+                        onChange={(checked) => setSettings({ ...settings, newOrders: checked })}
+                    />
+                    <ToggleItem
+                        label="สรุปรายวัน (Daily Summary)"
+                        description="รับสรุปยอดขายและสต็อกทุกวัน"
+                        checked={settings.dailySummary}
+                        onChange={(checked) => setSettings({ ...settings, dailySummary: checked })}
+                    />
+                </div>
+
+                <div className="pt-6 border-t border-gray-100 space-y-6">
+                    <h3 className="font-medium text-gray-900">ช่องทางการแจ้งเตือน</h3>
+
+                    <ToggleItem
+                        label="อีเมล (Email)"
                         description="รับการแจ้งเตือนผ่านอีเมล"
                         checked={settings.emailNotifications}
                         onChange={(checked) => setSettings({ ...settings, emailNotifications: checked })}
                     />
-                    <ToggleItem
-                        label="LINE Notify"
-                        description="รับการแจ้งเตือนผ่าน LINE"
-                        checked={settings.lineNotify}
-                        onChange={(checked) => setSettings({ ...settings, lineNotify: checked })}
-                    />
+
+                    <div className="space-y-4">
+                        <ToggleItem
+                            label="LINE Notify"
+                            description="รับการแจ้งเตือนผ่าน LINE"
+                            checked={settings.lineNotify}
+                            onChange={(checked) => setSettings({ ...settings, lineNotify: checked })}
+                        />
+
+                        {settings.lineNotify && (
+                            <div className="ml-0 sm:ml-12 p-4 bg-gray-50 rounded-xl border border-gray-200 animate-slide-up">
+                                <label className="label">LINE Notify Token</label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="password"
+                                        placeholder="กรอก Token ที่ได้จาก https://notify-bot.line.me"
+                                        className="input flex-1"
+                                        value={settings.lineNotifyToken}
+                                        onChange={(e) => setSettings({ ...settings, lineNotifyToken: e.target.value })}
+                                    />
+                                    <button
+                                        onClick={handleTestLine}
+                                        disabled={isTesting || !settings.lineNotifyToken}
+                                        className="btn-white whitespace-nowrap"
+                                    >
+                                        {isTesting ? 'กำลังส่ง...' : 'ทดสอบ'}
+                                    </button>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    1. ไปที่ <a href="https://notify-bot.line.me/my/" target="_blank" className="text-primary-600 hover:underline">notify-bot.line.me</a><br />
+                                    2. เข้าสู่ระบบและกด "Generate Token"<br />
+                                    3. เลือกกลุ่มไลน์ที่ต้องการรับการแจ้งเตือน<br />
+                                    4. คัดลอก Token มาใส่ในช่องนี้
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-gray-100">
+                    <button onClick={handleSave} disabled={isLoading} className="btn-primary">
+                        {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                        บันทึกการตั้งค่า
+                    </button>
                 </div>
             </div>
         </div>

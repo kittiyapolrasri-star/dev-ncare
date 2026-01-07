@@ -168,6 +168,17 @@ export default function POSPage() {
                             placeholder="ค้นหาสินค้า หรือ สแกนบาร์โค้ด..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                    // Scan-to-Add Logic
+                                    // If search matches a barcode exactly, add it immediately
+                                    const exactMatch = products.find((p: any) => p.barcode === search || p.sku === search);
+                                    if (exactMatch) {
+                                        addToCart(exactMatch);
+                                        // Optional: Play beep sound here
+                                    }
+                                }
+                            }}
                             className="w-full pl-12 pr-4 py-4 bg-gray-50 border-0 rounded-xl text-lg focus:ring-2 focus:ring-primary-500"
                             autoFocus
                         />
@@ -347,6 +358,23 @@ export default function POSPage() {
                                 </div>
                             </div>
 
+                            {/* QR Payment Display */}
+                            {paymentMethod === 'QR_PAYMENT' && (
+                                <div className="text-center p-4 bg-gray-50 rounded-xl space-y-4">
+                                    <div className="bg-white p-4 rounded-xl shadow-sm inline-block">
+                                        {/* Use img tag pointing to a QR generator service or backend renderer as fallback if no lib */}
+                                        {/* Simple hack: use Google Charts API or similar public API for now since we can't install lib */}
+                                        {/* Ideally: <QRCode value={qrPayload} /> */}
+                                        <img
+                                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`https://promptpay.io/${totalAmount}`)}`} // Placeholder until we hook up real payload
+                                            alt="QR Code"
+                                            className="w-40 h-40 mx-auto"
+                                        />
+                                    </div>
+                                    <p className="text-sm text-gray-500">สแกนเพื่อจ่ายเงิน (PromptPay)</p>
+                                </div>
+                            )}
+
                             {/* Cash Amount */}
                             {paymentMethod === 'CASH' && (
                                 <div>
@@ -357,6 +385,7 @@ export default function POSPage() {
                                         onChange={(e) => setAmountReceived(e.target.value)}
                                         className="input text-2xl text-center font-bold"
                                         placeholder="0.00"
+                                        autoFocus
                                     />
                                     <div className="flex gap-2 mt-2">
                                         {quickAmounts.map((amount) => (
