@@ -1,0 +1,861 @@
+// Prisma Schema for PharmaCare ERP
+// Enterprise Pharmacy Management System with VAT/Non-VAT Inventory, OEM, Multi-branch
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ORGANIZATION & USERS
+// ============================================
+
+model Organization {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  taxId       String?  @map("tax_id")
+  address     String?
+  phone       String?
+  email       String?
+  logo        String?
+  settings    Json?    @default("{}")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  branches    Branch[]
+  users       User[]
+  suppliers   Supplier[]
+  customers   Customer[]
+  distributors Distributor[]
+  products    Product[]
+
+  @@map("organizations")
+}
+
+model Branch {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  code           String
+  type           BranchType @default(RETAIL)
+  address        String?
+  phone          String?
+  email          String?
+  latitude       Float?
+  longitude      Float?
+  isActive       Boolean  @default(true) @map("is_active")
+  isHeadquarter  Boolean  @default(false) @map("is_headquarter")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  users          User[]
+  inventoryVat   InventoryVat[]
+  inventoryNonVat InventoryNonVat[]
+  sales          Sale[]
+  purchases      Purchase[]
+  stockMovements StockMovement[]
+  goodsReceiving GoodsReceiving[]
+
+  @@unique([organizationId, code])
+  @@map("branches")
+}
+
+enum BranchType {
+  RETAIL      // ร้านขายปลีก
+  WAREHOUSE   // คลังสินค้า
+  DISTRIBUTION // ศูนย์กระจายสินค้า
+}
+
+model User {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  branchId       String?  @map("branch_id")
+  email          String   @unique
+  password       String
+  firstName      String   @map("first_name")
+  lastName       String   @map("last_name")
+  phone          String?
+  avatar         String?
+  role           UserRole @default(STAFF)
+  isActive       Boolean  @default(true) @map("is_active")
+  lastLoginAt    DateTime? @map("last_login_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  branch         Branch? @relation(fields: [branchId], references: [id])
+  sales          Sale[]
+  purchases      Purchase[]
+  auditLogs      AuditLog[]
+
+  @@map("users")
+}
+
+enum UserRole {
+  CEO           // ผู้บริหารสูงสุด
+  ACCOUNTANT    // บัญชี
+  BRANCH_MANAGER // ผู้จัดการสาขา
+  PHARMACIST    // เภสัชกร
+  STAFF         // พนักงาน
+  DISTRIBUTOR   // ตัวแทนจำหน่าย
+}
+
+// ============================================
+// PRODUCTS & CATEGORIES
+// ============================================
+
+model ProductCategory {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  parentId    String?  @map("parent_id")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  parent      ProductCategory? @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children    ProductCategory[] @relation("CategoryHierarchy")
+  products    Product[]
+
+  @@map("product_categories")
+}
+
+model Product {
+  id              String   @id @default(uuid())
+  organizationId  String   @map("organization_id")
+  categoryId      String?  @map("category_id")
+  supplierId      String?  @map("supplier_id")
+  
+  // Basic Info
+  sku             String
+  barcode         String?
+  name            String
+  genericName     String?  @map("generic_name")
+  description     String?
+  
+  // Drug Info
+  drugType        DrugType @default(GENERAL) @map("drug_type")
+  dosageForm      String?  @map("dosage_form")
+  strength        String?
+  unit            String   @default("ชิ้น")
+  packSize        Int      @default(1) @map("pack_size")
+  
+  // Pricing
+  costPrice       Decimal  @default(0) @map("cost_price") @db.Decimal(12, 2)
+  sellingPrice    Decimal  @default(0) @map("selling_price") @db.Decimal(12, 2)
+  
+  // VAT
+  isVatExempt     Boolean  @default(false) @map("is_vat_exempt")
+  vatRate         Decimal  @default(7) @map("vat_rate") @db.Decimal(5, 2)
+  
+  // Stock Control
+  reorderPoint    Int      @default(10) @map("reorder_point")
+  reorderQty      Int      @default(100) @map("reorder_qty")
+  maxStock        Int?     @map("max_stock")
+  
+  // OEM
+  isOemProduct    Boolean  @default(false) @map("is_oem_product")
+  oemLeadDays     Int?     @map("oem_lead_days")
+  
+  // Status
+  isActive        Boolean  @default(true) @map("is_active")
+  isControlled    Boolean  @default(false) @map("is_controlled")
+  requiresRx      Boolean  @default(false) @map("requires_rx")
+  
+  // Images
+  images          String[] @default([])
+  
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  organization    Organization @relation(fields: [organizationId], references: [id])
+  category        ProductCategory? @relation(fields: [categoryId], references: [id])
+  supplier        Supplier? @relation(fields: [supplierId], references: [id])
+  batches         ProductBatch[]
+  inventoryVat    InventoryVat[]
+  inventoryNonVat InventoryNonVat[]
+  saleItems       SaleItem[]
+  purchaseItems   PurchaseItem[]
+  oemOrderItems   OemOrderItem[]
+  saleReturnItems SaleReturnItem[]
+
+  @@unique([organizationId, sku])
+  @@map("products")
+}
+
+enum DrugType {
+  GENERAL           // ยาทั่วไป
+  DANGEROUS_DRUG    // ยาอันตราย
+  CONTROLLED_DRUG   // ยาควบคุมพิเศษ
+  NARCOTIC          // ยาเสพติด
+  SUPPLEMENT        // อาหารเสริม
+  MEDICAL_DEVICE    // เครื่องมือแพทย์
+  COSMETIC          // เครื่องสำอาง
+}
+
+model ProductBatch {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  batchNumber   String   @map("batch_number")
+  lotNumber     String?  @map("lot_number")
+  manufacturingDate DateTime? @map("manufacturing_date")
+  expiryDate    DateTime @map("expiry_date")
+  quantity      Int      @default(0)
+  costPrice     Decimal  @map("cost_price") @db.Decimal(12, 2)
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  product       Product @relation(fields: [productId], references: [id])
+  inventoryVat  InventoryVat[]
+  inventoryNonVat InventoryNonVat[]
+  saleItems     SaleItem[]
+  stockMovements StockMovement[]
+  saleReturnItems SaleReturnItem[]
+
+  @@unique([productId, batchNumber])
+  @@map("product_batches")
+}
+
+// ============================================
+// INVENTORY - VAT & NON-VAT
+// ============================================
+
+model InventoryVat {
+  id            String   @id @default(uuid())
+  branchId      String   @map("branch_id")
+  productId     String   @map("product_id")
+  batchId       String?  @map("batch_id")
+  quantity      Int      @default(0)
+  reservedQty   Int      @default(0) @map("reserved_qty")
+  costBeforeVat Decimal  @map("cost_before_vat") @db.Decimal(12, 2)
+  vatRate       Decimal  @default(7) @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount     Decimal  @map("vat_amount") @db.Decimal(12, 2)
+  costWithVat   Decimal  @map("cost_with_vat") @db.Decimal(12, 2)
+  location      String?  // ตำแหน่งในคลัง
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  branch        Branch @relation(fields: [branchId], references: [id])
+  product       Product @relation(fields: [productId], references: [id])
+  batch         ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@unique([branchId, productId, batchId])
+  @@map("inventory_vat")
+}
+
+model InventoryNonVat {
+  id            String   @id @default(uuid())
+  branchId      String   @map("branch_id")
+  productId     String   @map("product_id")
+  batchId       String?  @map("batch_id")
+  quantity      Int      @default(0)
+  reservedQty   Int      @default(0) @map("reserved_qty")
+  costPrice     Decimal  @map("cost_price") @db.Decimal(12, 2)
+  sellingPrice  Decimal  @map("selling_price") @db.Decimal(12, 2)
+  location      String?  // ตำแหน่งในคลัง
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  branch        Branch @relation(fields: [branchId], references: [id])
+  product       Product @relation(fields: [productId], references: [id])
+  batch         ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@unique([branchId, productId, batchId])
+  @@map("inventory_non_vat")
+}
+
+model StockMovement {
+  id            String   @id @default(uuid())
+  branchId      String   @map("branch_id")
+  batchId       String   @map("batch_id")
+  movementType  MovementType @map("movement_type")
+  quantity      Int
+  referenceType String?  @map("reference_type") // SALE, PURCHASE, TRANSFER, ADJUSTMENT
+  referenceId   String?  @map("reference_id")
+  notes         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdBy     String?  @map("created_by")
+
+  branch        Branch @relation(fields: [branchId], references: [id])
+  batch         ProductBatch @relation(fields: [batchId], references: [id])
+
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  IN              // รับเข้า
+  OUT             // จ่ายออก
+  TRANSFER_IN     // โอนเข้า
+  TRANSFER_OUT    // โอนออก
+  ADJUSTMENT_IN   // ปรับเพิ่ม
+  ADJUSTMENT_OUT  // ปรับลด
+  RETURN_IN       // รับคืน
+  RETURN_OUT      // ส่งคืน
+  EXPIRED         // หมดอายุ
+  DAMAGED         // เสียหาย
+}
+
+// ============================================
+// SUPPLIERS & OEM
+// ============================================
+
+model Supplier {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  code           String
+  name           String
+  taxId          String?  @map("tax_id")
+  contactPerson  String?  @map("contact_person")
+  phone          String?
+  email          String?
+  address        String?
+  supplierType   SupplierType @default(GENERAL) @map("supplier_type")
+  paymentTerms   Int      @default(30) @map("payment_terms") // วัน
+  creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  isVatRegistered Boolean @default(true) @map("is_vat_registered")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  products       Product[]
+  purchases      Purchase[]
+  oemOrders      OemOrder[]
+
+  @@unique([organizationId, code])
+  @@map("suppliers")
+}
+
+enum SupplierType {
+  GENERAL     // ผู้จำหน่ายทั่วไป
+  OEM         // ผู้ผลิต OEM
+  IMPORTER    // ผู้นำเข้า
+  DISTRIBUTOR // ตัวแทนจำหน่าย
+}
+
+model OemOrder {
+  id             String   @id @default(uuid())
+  supplierId     String   @map("supplier_id")
+  orderNumber    String   @unique @map("order_number")
+  orderDate      DateTime @default(now()) @map("order_date")
+  expectedDate   DateTime? @map("expected_date")
+  status         OemOrderStatus @default(DRAFT)
+  totalAmount    Decimal  @map("total_amount") @db.Decimal(15, 2)
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  items          OemOrderItem[]
+  goodsReceiving GoodsReceiving[]
+
+  @@map("oem_orders")
+}
+
+enum OemOrderStatus {
+  DRAFT         // แบบร่าง
+  SENT          // ส่งแล้ว
+  CONFIRMED     // ยืนยันแล้ว
+  IN_PRODUCTION // อยู่ระหว่างผลิต
+  SHIPPED       // จัดส่งแล้ว
+  RECEIVED      // รับแล้ว
+  CANCELLED     // ยกเลิก
+}
+
+model OemOrderItem {
+  id           String   @id @default(uuid())
+  oemOrderId   String   @map("oem_order_id")
+  productId    String   @map("product_id")
+  quantity     Int
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(12, 2)
+  totalPrice   Decimal  @map("total_price") @db.Decimal(12, 2)
+  receivedQty  Int      @default(0) @map("received_qty")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  oemOrder     OemOrder @relation(fields: [oemOrderId], references: [id])
+  product      Product @relation(fields: [productId], references: [id])
+
+  @@map("oem_order_items")
+}
+
+model GoodsReceiving {
+  id             String   @id @default(uuid())
+  branchId       String   @map("branch_id")
+  oemOrderId     String?  @map("oem_order_id")
+  purchaseId     String?  @map("purchase_id")
+  grNumber       String   @unique @map("gr_number")
+  receivingDate  DateTime @default(now()) @map("receiving_date")
+  status         GrStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  branch         Branch @relation(fields: [branchId], references: [id])
+  oemOrder       OemOrder? @relation(fields: [oemOrderId], references: [id])
+  purchase       Purchase? @relation(fields: [purchaseId], references: [id])
+  items          GoodsReceivingItem[]
+
+  @@map("goods_receiving")
+}
+
+enum GrStatus {
+  PENDING     // รอตรวจรับ
+  INSPECTING  // กำลังตรวจสอบ
+  APPROVED    // อนุมัติ
+  REJECTED    // ปฏิเสธ
+}
+
+model GoodsReceivingItem {
+  id              String   @id @default(uuid())
+  goodsReceivingId String  @map("goods_receiving_id")
+  productId       String   @map("product_id")
+  batchNumber     String   @map("batch_number")
+  lotNumber       String?  @map("lot_number")
+  expiryDate      DateTime @map("expiry_date")
+  orderedQty      Int      @map("ordered_qty")
+  receivedQty     Int      @map("received_qty")
+  acceptedQty     Int      @map("accepted_qty")
+  rejectedQty     Int      @default(0) @map("rejected_qty")
+  unitPrice       Decimal  @map("unit_price") @db.Decimal(12, 2)
+  isVat           Boolean  @default(true) @map("is_vat")
+  notes           String?
+
+  goodsReceiving  GoodsReceiving @relation(fields: [goodsReceivingId], references: [id])
+
+  @@map("goods_receiving_items")
+}
+
+// ============================================
+// PURCHASES
+// ============================================
+
+model Purchase {
+  id             String   @id @default(uuid())
+  branchId       String   @map("branch_id")
+  supplierId     String   @map("supplier_id")
+  userId         String   @map("user_id")
+  poNumber       String   @unique @map("po_number")
+  orderDate      DateTime @default(now()) @map("order_date")
+  expectedDate   DateTime? @map("expected_date")
+  status         PurchaseStatus @default(DRAFT)
+  subtotal       Decimal  @db.Decimal(15, 2)
+  vatAmount      Decimal  @map("vat_amount") @db.Decimal(15, 2)
+  totalAmount    Decimal  @map("total_amount") @db.Decimal(15, 2)
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  branch         Branch @relation(fields: [branchId], references: [id])
+  supplier       Supplier @relation(fields: [supplierId], references: [id])
+  user           User @relation(fields: [userId], references: [id])
+  items          PurchaseItem[]
+  goodsReceiving GoodsReceiving[]
+
+  @@map("purchases")
+}
+
+enum PurchaseStatus {
+  DRAFT       // แบบร่าง
+  PENDING     // รออนุมัติ
+  APPROVED    // อนุมัติ
+  ORDERED     // สั่งแล้ว
+  PARTIAL     // รับบางส่วน
+  RECEIVED    // รับครบ
+  CANCELLED   // ยกเลิก
+}
+
+model PurchaseItem {
+  id           String   @id @default(uuid())
+  purchaseId   String   @map("purchase_id")
+  productId    String   @map("product_id")
+  quantity     Int
+  receivedQty  Int      @default(0) @map("received_qty")
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(12, 2)
+  vatRate      Decimal  @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount    Decimal  @map("vat_amount") @db.Decimal(12, 2)
+  totalPrice   Decimal  @map("total_price") @db.Decimal(12, 2)
+
+  purchase     Purchase @relation(fields: [purchaseId], references: [id])
+  product      Product @relation(fields: [productId], references: [id])
+
+  @@map("purchase_items")
+}
+
+// ============================================
+// CUSTOMERS & DISTRIBUTORS
+// ============================================
+
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  code           String?
+  name           String
+  phone          String?
+  email          String?
+  address        String?
+  taxId          String?  @map("tax_id")
+  customerType   CustomerType @default(RETAIL) @map("customer_type")
+  creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  sales          Sale[]
+
+  @@map("customers")
+}
+
+enum CustomerType {
+  RETAIL        // ลูกค้าปลีก
+  WHOLESALE     // ลูกค้าส่ง
+  HOSPITAL      // โรงพยาบาล
+  CLINIC        // คลินิก
+  PHARMACY      // ร้านยา
+}
+
+model Distributor {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  code           String
+  name           String
+  contactPerson  String?  @map("contact_person")
+  phone          String?
+  email          String?
+  password       String?
+  address        String?
+  taxId          String?  @map("tax_id")
+  territory      String?  // พื้นที่รับผิดชอบ
+  commissionRate Decimal  @default(0) @map("commission_rate") @db.Decimal(5, 2)
+  creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
+  currentCredit  Decimal  @default(0) @map("current_credit") @db.Decimal(15, 2)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  sales          Sale[]
+
+  @@unique([organizationId, code])
+  @@map("distributors")
+}
+
+// ============================================
+// SALES & POS
+// ============================================
+
+model Sale {
+  id             String   @id @default(uuid())
+  branchId       String   @map("branch_id")
+  customerId     String?  @map("customer_id")
+  distributorId  String?  @map("distributor_id")
+  userId         String   @map("user_id")
+  invoiceNumber  String   @unique @map("invoice_number")
+  saleDate       DateTime @default(now()) @map("sale_date")
+  saleType       SaleType @default(RETAIL) @map("sale_type")
+  status         SaleStatus @default(COMPLETED)
+  
+  // Amounts
+  subtotal       Decimal  @db.Decimal(15, 2)
+  discountAmount Decimal  @default(0) @map("discount_amount") @db.Decimal(15, 2)
+  vatAmount      Decimal  @map("vat_amount") @db.Decimal(15, 2)
+  totalAmount    Decimal  @map("total_amount") @db.Decimal(15, 2)
+  
+  // Payment
+  paymentMethod  PaymentMethod @default(CASH) @map("payment_method")
+  paymentStatus  PaymentStatus @default(PAID) @map("payment_status")
+  amountPaid     Decimal  @map("amount_paid") @db.Decimal(15, 2)
+  changeAmount   Decimal  @default(0) @map("change_amount") @db.Decimal(15, 2)
+  
+  // VAT Invoice
+  isVatInvoice   Boolean  @default(false) @map("is_vat_invoice")
+  vatInvoiceNumber String? @map("vat_invoice_number")
+  
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  branch         Branch @relation(fields: [branchId], references: [id])
+  customer       Customer? @relation(fields: [customerId], references: [id])
+  distributor    Distributor? @relation(fields: [distributorId], references: [id])
+  user           User @relation(fields: [userId], references: [id])
+  items          SaleItem[]
+  payments       Payment[]
+  returns        SaleReturn[]
+
+  @@map("sales")
+}
+
+enum SaleType {
+  RETAIL      // ขายปลีก
+  WHOLESALE   // ขายส่ง
+  DISTRIBUTOR // ขายผ่านตัวแทน
+}
+
+enum SaleStatus {
+  DRAFT       // แบบร่าง
+  PENDING     // รอชำระ
+  COMPLETED   // เสร็จสิ้น
+  CANCELLED   // ยกเลิก
+  RETURNED    // คืนสินค้า
+}
+
+enum PaymentMethod {
+  CASH            // เงินสด
+  CREDIT_CARD     // บัตรเครดิต
+  BANK_TRANSFER   // โอนเงิน
+  QR_PAYMENT      // สแกน QR
+  CREDIT          // เงินเชื่อ
+}
+
+enum PaymentStatus {
+  PENDING     // รอชำระ
+  PARTIAL     // ชำระบางส่วน
+  PAID        // ชำระแล้ว
+  OVERDUE     // เกินกำหนด
+}
+
+model SaleItem {
+  id           String   @id @default(uuid())
+  saleId       String   @map("sale_id")
+  productId    String   @map("product_id")
+  batchId      String?  @map("batch_id")
+  quantity     Int
+  unitPrice    Decimal  @map("unit_price") @db.Decimal(12, 2)
+  discount     Decimal  @default(0) @db.Decimal(12, 2)
+  vatRate      Decimal  @map("vat_rate") @db.Decimal(5, 2)
+  vatAmount    Decimal  @map("vat_amount") @db.Decimal(12, 2)
+  totalPrice   Decimal  @map("total_price") @db.Decimal(12, 2)
+  isVat        Boolean  @default(true) @map("is_vat")
+
+  sale         Sale @relation(fields: [saleId], references: [id])
+  product      Product @relation(fields: [productId], references: [id])
+  batch        ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@map("sale_items")
+}
+
+// ============================================
+// FINANCE & PAYMENTS
+// ============================================
+
+model Payment {
+  id             String   @id @default(uuid())
+  saleId         String?  @map("sale_id")
+  paymentNumber  String   @unique @map("payment_number")
+  paymentDate    DateTime @default(now()) @map("payment_date")
+  paymentMethod  PaymentMethod @map("payment_method")
+  amount         Decimal  @db.Decimal(15, 2)
+  reference      String?  // เลขอ้างอิง
+  notes          String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  sale           Sale? @relation(fields: [saleId], references: [id])
+
+  @@map("payments")
+}
+
+model Account {
+  id             String   @id @default(uuid())
+  code           String   @unique
+  name           String
+  accountType    AccountType @map("account_type")
+  parentId       String?  @map("parent_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  parent         Account? @relation("AccountHierarchy", fields: [parentId], references: [id])
+  children       Account[] @relation("AccountHierarchy")
+  transactions   Transaction[]
+
+  @@map("accounts")
+}
+
+enum AccountType {
+  ASSET         // สินทรัพย์
+  LIABILITY     // หนี้สิน
+  EQUITY        // ส่วนของเจ้าของ
+  REVENUE       // รายได้
+  EXPENSE       // ค่าใช้จ่าย
+}
+
+model Transaction {
+  id             String   @id @default(uuid())
+  accountId      String   @map("account_id")
+  transactionDate DateTime @map("transaction_date")
+  entryType      EntryType @map("entry_type")
+  amount         Decimal  @db.Decimal(15, 2)
+  referenceType  String?  @map("reference_type")
+  referenceId    String?  @map("reference_id")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  account        Account @relation(fields: [accountId], references: [id])
+
+  @@map("transactions")
+}
+
+enum EntryType {
+  DEBIT   // เดบิต
+  CREDIT  // เครดิต
+}
+
+// ============================================
+// PRESCRIPTIONS
+// ============================================
+
+model Prescription {
+  id              String   @id @default(uuid())
+  prescriptionNo  String   @unique @map("prescription_no")
+  patientName     String   @map("patient_name")
+  patientPhone    String?  @map("patient_phone")
+  doctorName      String?  @map("doctor_name")
+  hospitalName    String?  @map("hospital_name")
+  prescriptionDate DateTime @map("prescription_date")
+  status          PrescriptionStatus @default(PENDING)
+  notes           String?
+  imageUrl        String?  @map("image_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  items           PrescriptionItem[]
+
+  @@map("prescriptions")
+}
+
+enum PrescriptionStatus {
+  PENDING     // รอดำเนินการ
+  DISPENSED   // จ่ายยาแล้ว
+  CANCELLED   // ยกเลิก
+}
+
+model PrescriptionItem {
+  id              String   @id @default(uuid())
+  prescriptionId  String   @map("prescription_id")
+  drugName        String   @map("drug_name")
+  quantity        Int
+  dosage          String?
+  frequency       String?
+  duration        String?
+  notes           String?
+
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id])
+
+  @@map("prescription_items")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  userId       String?  @map("user_id")
+  action       String
+  entityType   String   @map("entity_type")
+  entityId     String?  @map("entity_id")
+  oldValues    Json?    @map("old_values")
+  newValues    Json?    @map("new_values")
+  ipAddress    String?  @map("ip_address")
+  userAgent    String?  @map("user_agent")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user         User? @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+}
+
+// ============================================
+// AI ANALYTICS (Future)
+// ============================================
+
+model AiInsight {
+  id            String   @id @default(uuid())
+  insightType   String   @map("insight_type")
+  productId     String?  @map("product_id")
+  branchId      String?  @map("branch_id")
+  title         String
+  description   String
+  data          Json?
+  priority      Int      @default(0)
+  isRead        Boolean  @default(false) @map("is_read")
+  expiresAt     DateTime? @map("expires_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("ai_insights")
+}
+
+model DemandForecast {
+  id            String   @id @default(uuid())
+  productId     String   @map("product_id")
+  branchId      String   @map("branch_id")
+  forecastDate  DateTime @map("forecast_date")
+  predictedQty  Int      @map("predicted_qty")
+  confidence    Float
+  actualQty     Int?     @map("actual_qty")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([productId, branchId, forecastDate])
+  @@map("demand_forecasts")
+}
+
+// ============================================
+// SALE RETURNS (คืนสินค้า)
+// ============================================
+
+model SaleReturn {
+  id            String   @id @default(uuid())
+  saleId        String   @map("sale_id")
+  returnNumber  String   @unique @map("return_number")
+  returnDate    DateTime @default(now()) @map("return_date")
+  reason        String?
+  status        ReturnStatus @default(PENDING)
+  refundAmount  Decimal  @map("refund_amount") @db.Decimal(15, 2)
+  refundMethod  PaymentMethod? @map("refund_method")
+  notes         String?
+  approvedAt    DateTime? @map("approved_at")
+  approvedBy    String?  @map("approved_by")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  sale          Sale @relation(fields: [saleId], references: [id])
+  items         SaleReturnItem[]
+
+  @@map("sale_returns")
+}
+
+enum ReturnStatus {
+  PENDING     // รอดำเนินการ
+  APPROVED    // อนุมัติ
+  REJECTED    // ปฏิเสธ
+  REFUNDED    // คืนเงินแล้ว
+}
+
+model SaleReturnItem {
+  id            String   @id @default(uuid())
+  returnId      String   @map("return_id")
+  productId     String   @map("product_id")
+  batchId       String?  @map("batch_id")
+  quantity      Int
+  unitPrice     Decimal  @map("unit_price") @db.Decimal(12, 2)
+  totalPrice    Decimal  @map("total_price") @db.Decimal(12, 2)
+  reason        String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  saleReturn    SaleReturn @relation(fields: [returnId], references: [id])
+  product       Product @relation(fields: [productId], references: [id])
+  batch         ProductBatch? @relation(fields: [batchId], references: [id])
+
+  @@map("sale_return_items")
+}
+

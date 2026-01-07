@@ -1,0 +1,42 @@
+{
+  "name": "pharma-erp",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise Pharmacy ERP System - Multi-branch, VAT/Non-VAT Inventory, OEM Integration",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm run dev --workspace=apps/web -- -p 3100",
+    "dev:api": "npm run dev --workspace=apps/api",
+    "build": "npm run build --workspaces",
+    "build:web": "npm run build --workspace=apps/web",
+    "build:api": "npm run build --workspace=apps/api",
+    "start": "concurrently \"npm run start:api\" \"npm run start:web\"",
+    "start:web": "npm run start --workspace=apps/web -- -p 3100",
+    "start:api": "npm run start --workspace=apps/api",
+    "db:generate": "npm run db:generate --workspace=apps/api",
+    "db:push": "npm run db:push --workspace=apps/api",
+    "db:migrate": "npm run db:migrate --workspace=apps/api",
+    "db:seed": "npm run db:seed --workspace=apps/api",
+    "db:studio": "npm run db:studio --workspace=apps/api",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:db": "docker-compose up -d postgres redis",
+    "setup": "npm run docker:db && timeout 10 && npm run db:push && npm run db:seed",
+    "lint": "npm run lint --workspaces",
+    "test": "npm run test --workspaces",
+    "clean": "rimraf node_modules apps/*/node_modules packages/*/node_modules"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "rimraf": "^5.0.5",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
