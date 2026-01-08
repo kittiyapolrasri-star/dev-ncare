@@ -64,6 +64,7 @@ model Branch {
   goodsReceiving GoodsReceiving[]
   sourceTransfers StockTransfer[] @relation("SourceBranch")
   targetTransfers StockTransfer[] @relation("TargetBranch")
+  expenses       Expense[]
 
   @@unique([organizationId, code])
   @@map("branches")
@@ -140,6 +141,7 @@ model User {
   purchases      Purchase[]
   auditLogs      AuditLog[]
   createdTransfers StockTransfer[]
+  expenses       Expense[]
 
   @@map("users")
 }
@@ -559,14 +561,51 @@ model Customer {
   customerType   CustomerType @default(RETAIL) @map("customer_type")
   creditLimit    Decimal? @map("credit_limit") @db.Decimal(15, 2)
   paymentTerms   Int      @default(0) @map("payment_terms") // วัน (เครดิตเทอม)
+  // Member Points System
+  totalPoints    Int      @default(0) @map("total_points")    // คะแนนสะสม
+  usedPoints     Int      @default(0) @map("used_points")     // คะแนนที่ใช้ไป
+  memberTier     MemberTier @default(BRONZE) @map("member_tier")
+  memberSince    DateTime?  @map("member_since")
+  birthDate      DateTime?  @map("birth_date")
   isActive       Boolean  @default(true) @map("is_active")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization   Organization @relation(fields: [organizationId], references: [id])
   sales          Sale[]
+  pointTransactions PointTransaction[]
 
   @@map("customers")
+}
+
+enum MemberTier {
+  BRONZE    // 0-999 points
+  SILVER    // 1000-4999 points
+  GOLD      // 5000-9999 points
+  PLATINUM  // 10000+ points
+}
+
+model PointTransaction {
+  id           String   @id @default(uuid())
+  customerId   String   @map("customer_id")
+  saleId       String?  @map("sale_id")
+  type         PointType
+  points       Int
+  description  String?
+  expiresAt    DateTime? @map("expires_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  customer     Customer @relation(fields: [customerId], references: [id])
+  sale         Sale?    @relation(fields: [saleId], references: [id])
+
+  @@map("point_transactions")
+}
+
+enum PointType {
+  EARN      // ได้รับคะแนน
+  REDEEM    // แลกคะแนน
+  EXPIRE    // คะแนนหมดอายุ
+  ADJUST    // ปรับแก้
 }
 
 enum CustomerType {
@@ -647,6 +686,7 @@ model Sale {
   payments       Payment[]
   returns        SaleReturn[]
   etaxInvoice    ETaxInvoice?
+  pointTransactions PointTransaction[]
 
   @@map("sales")
 }
@@ -967,3 +1007,45 @@ enum ETaxStatus {
   FAILED        // ส่งไม่ผ่าน
 }
 
+// ============================================
+// OPERATING EXPENSES (Phase 8)
+// ============================================
+
+model ExpenseCategory {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  code           String
+  name           String   // ค่าเช่า, เงินเดือน, ค่าน้ำ, ค่าไฟ
+  description    String?
+  isSystem       Boolean  @default(false) @map("is_system") // Pre-defined categories
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  expenses       Expense[]
+
+  @@unique([organizationId, code])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  branchId       String?  @map("branch_id")
+  categoryId     String   @map("category_id")
+  expenseDate    DateTime @map("expense_date")
+  amount         Decimal  @db.Decimal(15, 2)
+  description    String?
+  reference      String?  // Receipt/Invoice number
+  paymentMethod  PaymentMethod? @map("payment_method")
+  attachmentUrl  String?  @map("attachment_url")
+  createdBy      String   @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id])
+  branch         Branch? @relation(fields: [branchId], references: [id])
+  user           User @relation(fields: [createdBy], references: [id])
+
+  @@map("expenses")
+}

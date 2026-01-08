@@ -25,7 +25,8 @@ import {
     Brain,
     RotateCcw,
     FileSignature,
-    DollarSign
+    DollarSign,
+    Wallet
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/auth';
 import { clsx } from 'clsx';
@@ -47,7 +48,7 @@ const navigation = [
     { name: 'คืนสินค้า', href: '/dashboard/returns', icon: RotateCcw },
     { name: 'ใบสั่งยา', href: '/dashboard/prescriptions', icon: FileSignature },
     { name: 'การเงิน', href: '/dashboard/finance', icon: DollarSign },
-    { name: 'การเงิน', href: '/dashboard/finance', icon: DollarSign },
+    { name: 'ค่าใช้จ่าย', href: '/dashboard/expenses', icon: Wallet },
     { name: 'รายงาน', href: '/dashboard/reports', icon: FileText },
     { name: 'AI Intelligence', href: '/dashboard/ai', icon: Brain },
     { name: 'ตั้งค่า', href: '/dashboard/settings', icon: Settings },

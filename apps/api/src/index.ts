@@ -131,12 +131,16 @@ apiRouter.use('/users', userRoutes);
 apiRouter.use('/returns', returnRoutes);
 apiRouter.use('/prescriptions', prescriptionRoutes);
 import aiRoutes from './routes/ai.js';
+import expensesRoutes from './routes/expenses.js';
+import pointsRoutes from './routes/points.js';
 // ... previous imports
 
 apiRouter.use('/etax', etaxRoutes);
 apiRouter.use('/stock-transfers', stockTransferRoutes);
 apiRouter.use('/ai', aiRoutes);
 apiRouter.use('/settings', settingsRoutes);
+apiRouter.use('/expenses', expensesRoutes);
+apiRouter.use('/points', pointsRoutes);
 
 app.use('/api', apiRouter);
 

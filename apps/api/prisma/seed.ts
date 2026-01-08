@@ -347,6 +347,32 @@ async function main() {
 
     console.log('✅ Accounts created');
 
+    // Create expense categories
+    const expenseCategories = [
+        { code: 'RENT', name: 'ค่าเช่า' },
+        { code: 'SALARY', name: 'เงินเดือน' },
+        { code: 'UTILITIES_ELEC', name: 'ค่าไฟ' },
+        { code: 'UTILITIES_WATER', name: 'ค่าน้ำ' },
+        { code: 'SUPPLIES', name: 'วัสดุสิ้นเปลือง' },
+        { code: 'MAINTENANCE', name: 'ค่าซ่อมบำรุง' },
+        { code: 'TRANSPORT', name: 'ค่าขนส่ง' },
+        { code: 'OTHER', name: 'อื่นๆ' }
+    ];
+
+    for (const cat of expenseCategories) {
+        await prisma.expenseCategory.upsert({
+            where: { organizationId_code: { organizationId: organization.id, code: cat.code } },
+            update: {},
+            create: {
+                organizationId: organization.id,
+                code: cat.code,
+                name: cat.name,
+                isSystem: true
+            }
+        });
+    }
+    console.log('✅ Expense categories created');
+
     console.log(`
 ╔══════════════════════════════════════════════════════════╗
 ║           🌱 Database Seeded Successfully!               ║

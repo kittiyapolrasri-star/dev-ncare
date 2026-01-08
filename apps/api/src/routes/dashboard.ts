@@ -183,10 +183,35 @@ router.get('/', async (req: AuthRequest, res) => {
                     status: r.status,
                     branch: r.branch.name
                 }))
-            }
+            },
+            // Monthly Expenses (Phase 9)
+            expenses: await getMonthlyExpenses(req.user!.organizationId, targetBranchId)
         }
     });
 });
+
+// Helper: Get monthly expenses for dashboard
+async function getMonthlyExpenses(orgId: string, branchId?: string) {
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const where: any = {
+        organizationId: orgId,
+        expenseDate: { gte: thisMonthStart }
+    };
+    if (branchId) where.branchId = branchId;
+
+    const expenses = await prisma.expense.aggregate({
+        where,
+        _sum: { amount: true },
+        _count: true
+    });
+
+    return {
+        thisMonth: Number(expenses._sum.amount || 0),
+        count: expenses._count
+    };
+}
 
 // GET /api/dashboard/ceo - CEO specific dashboard
 router.get('/ceo', authorize('CEO'), async (req: AuthRequest, res) => {
